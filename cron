@@ -1,5 +1,5 @@
 # Ciclo completo una vez al día a las 3:00 AM
-0 3 * * * /opt/sitespeed/run-sitespeed.sh /opt/sitespeed/urls.txt full >> /var/log/sitespeed.log 2>&1
+0 3 * * * DEPLOY_PATH/run-sitespeed.sh DEPLOY_PATH/urls.txt full >> /var/log/sitespeed.log 2>&1
 
 # Ciclo rápido (desktop + chrome + native) cada hora
-0 * * * * /opt/sitespeed/run-sitespeed.sh /opt/sitespeed/urls.txt quick >> /var/log/sitespeed.log 2>&1
+0 * * * * DEPLOY_PATH/run-sitespeed.sh DEPLOY_PATH/urls.txt quick >> /var/log/sitespeed.log 2>&1

@@ -1,33 +1,37 @@
 #!/bin/bash
 # =============================================================================
 # run-sitespeed.sh
-# Lanza sitespeed.io para cada URL del fichero urls.txt en todas las
-# combinaciones de dispositivo, navegador y conectividad.
-#
-# Combinaciones: 2 dispositivos x 2 navegadores x 4 conectividades = 16 por URL
+# Lanza sitespeed.io para cada URL de urls.txt en combinaciones de
+# dispositivo, navegador y conectividad, enviando métricas a Graphite.
 #
 # En Grafana:
-#   - testname      → desktop | mobile
-#   - browser       → chrome  | firefox
-#   - connectivity  → native | cable | 3gfast | 3g | 2g
+#   testname     → desktop | mobile
+#   browser      → chrome  | firefox
+#   connectivity → native | cable | 3gfast | 3g | 2g
 #
 # Uso:
-#   bash run-sitespeed.sh ./urls.txt
-#   bash run-sitespeed.sh /ruta/alternativa/urls.txt
-#
-# Crontab (cada 6 horas):
-#   0 */6 * * * /opt/sitespeed/run-sitespeed.sh ./urls.txt >> /var/log/sitespeed.log 2>&1
+#   bash run-sitespeed.sh ./urls.txt           # modo full (por defecto)
+#   bash run-sitespeed.sh ./urls.txt quick     # solo desktop + chrome + native
 # =============================================================================
 
-DOCKER_IMAGE="sitespeedio/sitespeed.io:39.4.2"
-URLS_FILE="${1:-$(dirname "$0")/urls.txt}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Red Docker del compose oficial
-# Local (Windows): nombre de carpeta + "_default" → comprueba con: docker network ls
-# Producción (OVH/Linux): cambia GRAPHITE_HOST a "graphite"
-DOCKER_NETWORK="docker_default"
-GRAPHITE_HOST="172.26.0.2"
-GRAPHITE_PORT="2003"
+# Load .env if present
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
+DOCKER_IMAGE="sitespeedio/sitespeed.io:39.4.2"
+URLS_FILE="${1:-$SCRIPT_DIR/urls.txt}"
+MODE="${2:-full}"
+
+# Fallback defaults (overridden by .env)
+DOCKER_NETWORK="${DOCKER_NETWORK:-docker_default}"
+GRAPHITE_HOST="${GRAPHITE_HOST:-graphite}"
+GRAPHITE_PORT="${GRAPHITE_PORT:-2003}"
+ITERATIONS="${ITERATIONS:-3}"
 
 # ---------------------------------------------------------------------------
 
@@ -38,10 +42,6 @@ fi
 
 TOTAL=0; OK=0; FAIL=0
 
-# ---------------------------------------------------------------------------
-# Función principal
-# Argumentos: SLUG  BROWSER  VIEWPORT  MOBILE(true|"")  CONNECTIVITY
-# ---------------------------------------------------------------------------
 run_tests() {
   local SLUG="$1"
   local BROWSER="$2"
@@ -57,21 +57,17 @@ run_tests() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
 
-    # Ignorar aliases — solo usar la URL (primera columna)
     URL=$(echo "$line" | awk '{print $1}')
     TOTAL=$((TOTAL + 1))
 
     echo ""
     echo "--- [$TOTAL] $URL"
 
-    # Parámetros opcionales
     MOBILE_PARAM=""
     [[ -n "$MOBILE" ]] && MOBILE_PARAM="--mobile true"
 
     CONNECTIVITY_PARAM=""
-    if [[ "$CONNECTIVITY" != "native" ]]; then
-      CONNECTIVITY_PARAM="--connectivity.profile $CONNECTIVITY"
-    fi
+    [[ "$CONNECTIVITY" != "native" ]] && CONNECTIVITY_PARAM="--connectivity.profile $CONNECTIVITY"
 
     if docker run --shm-size=1g --rm \
         --cap-add=NET_ADMIN \
@@ -82,6 +78,7 @@ run_tests() {
         --slug "$SLUG" \
         --browser "$BROWSER" \
         --browsertime.viewPort "$VIEWPORT" \
+        -n "$ITERATIONS" \
         $MOBILE_PARAM \
         $CONNECTIVITY_PARAM \
         "$URL"; then
@@ -95,20 +92,22 @@ run_tests() {
   done < "$URLS_FILE"
 }
 
-# ---------------------------------------------------------------------------
-# Combinaciones: dispositivo x navegador x conectividad
-# ---------------------------------------------------------------------------
 echo "========================================================"
 echo " Inicio: $(date '+%Y-%m-%d %H:%M:%S')"
-echo " URLs:   $URLS_FILE"
+echo " URLs:   $URLS_FILE  |  Modo: $MODE"
+echo " Graphite: $GRAPHITE_HOST:$GRAPHITE_PORT  |  Network: $DOCKER_NETWORK"
 echo "========================================================"
 
-for CONNECTIVITY in native cable 3gfast 3g 2g; do
-  for BROWSER in chrome firefox; do
-    run_tests "desktop" "$BROWSER" "1920x1080" ""     "$CONNECTIVITY"
-    run_tests "mobile"  "$BROWSER" "360x640"   "true" "$CONNECTIVITY"
+if [[ "$MODE" == "quick" ]]; then
+  run_tests "desktop" "chrome" "1920x1080" "" "native"
+else
+  for CONNECTIVITY in native cable 3gfast 3g 2g; do
+    for BROWSER in chrome firefox; do
+      run_tests "desktop" "$BROWSER" "1920x1080" ""     "$CONNECTIVITY"
+      run_tests "mobile"  "$BROWSER" "360x640"   "true" "$CONNECTIVITY"
+    done
   done
-done
+fi
 
 echo ""
 echo "========================================================"

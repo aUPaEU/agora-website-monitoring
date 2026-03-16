@@ -1,0 +1,11 @@
+# Lista de URLs a monitorizar
+# Formato: URL alias_opcional
+# Las líneas con # son comentarios y se ignoran
+
+# ==== ARTEMIS =================================================================
+https://artemis.widening.eu
+https://artemis.widening.eu/login
+
+# ==== CIVIS ===================================================================
+https://civis.widening.eu
+https://civis.widening.eu/login

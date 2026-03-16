@@ -1,21 +1,24 @@
 #!/bin/bash
 # =============================================================================
 # init.sh
-# Installs the cron jobs defined in ./cron into the current user's crontab.
-# Replaces the DEPLOY_PATH placeholder with the actual script directory.
-# Safe to run multiple times — skips entries that are already present.
+# 1. Creates .env from .env.example if it doesn't exist
+# 2. Installs cron jobs from ./cron
+#
+# Safe to run multiple times.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRON_FILE="$SCRIPT_DIR/cron"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
+CRON_FILE="$SCRIPT_DIR/cron"
 
-# Create .env from .env.example if it doesn't exist yet
+# ---------------------------------------------------------------------------
+# 1. Create .env from .env.example if needed
+# ---------------------------------------------------------------------------
 if [[ ! -f "$ENV_FILE" ]]; then
   if [[ -f "$ENV_EXAMPLE" ]]; then
     cp "$ENV_EXAMPLE" "$ENV_FILE"
-    echo "[INFO] Created .env from .env.example — review it before running tests."
+    echo "[INFO] Created .env from .env.example — edit it before running tests."
   else
     echo "[WARN] No .env or .env.example found. Defaults will be used."
   fi
@@ -23,6 +26,9 @@ else
   echo "[INFO] .env already exists — skipping creation."
 fi
 
+# ---------------------------------------------------------------------------
+# 2. Install cron jobs
+# ---------------------------------------------------------------------------
 if [[ ! -f "$CRON_FILE" ]]; then
   echo "[ERROR] Cron file not found: $CRON_FILE"
   exit 1

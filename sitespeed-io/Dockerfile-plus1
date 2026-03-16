@@ -1,0 +1,17 @@
+ARG version
+FROM sitespeedio/sitespeed.io:${version}
+
+ENV SITESPEED_IO_BROWSERTIME__XVFB true
+ENV SITESPEED_IO_BROWSERTIME__DOCKER true
+ENV SITESPEED_IO_PLUGINS__ADD @sitespeed.io/plugin-lighthouse,@sitespeed.io/plugin-gpsi
+
+RUN sudo apt-get update && sudo apt-get install git -y
+RUN node --version
+RUN npm --version
+
+RUN npm install @sitespeed.io/plugin-lighthouse -g --production
+RUN npm install @sitespeed.io/plugin-gpsi -g --production
+RUN npm install @sitespeed.io/plugin-influxdb -g --production
+
+VOLUME /sitespeed.io
+WORKDIR /sitespeed.io
